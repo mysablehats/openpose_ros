@@ -1,3 +1,8 @@
+///wrapper for 1_extract_from_image.cpp example from openpose.
+/// this was done in a hurry. I read an image, publish a skeleton pose, this is
+// not done very fast and the topics are not properly time-stamped, so beware
+// of possible performance issues.
+
 // ------------------------- OpenPose Library Tutorial - Pose - Example 1 - Extract from Image -------------------------
 // This first example shows the user how to:
     // 1. Load an image (`filestream` module)
@@ -27,11 +32,18 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <image_transport/image_transport.h>
 #include <sensor_msgs/image_encodings.h>
+#include <geometry_msgs/Point32.h> // this has x,y and z. the third component in the op::array is actually a confidence; this will render incorrectly, but I will be able to publish the message
+#include <geometry_msgs/Polygon.h>
 
 // See all the available parameter options withe the `--help` flag. E.g. `build/examples/openpose/openpose.bin --help`
 // Note: This command will show you flags for other unnecessary 3rdparty files. Check only the flags for the OpenPose
 // executable. E.g. for `openpose.bin`, look for `Flags from examples/openpose/openpose.cpp:`.
 // Debugging/Other
+
+//all of these are parameters. some of them are not useful for us, others are very useful.
+//TODO: make these DEFINEs rosparameters and restructure code so they can be set before things are initialized.
+
+//TODO: also, we are going to use ros as a logging tool. if none of the inner openpose bits are using it, it is okay to remove the dependecy here.
 DEFINE_int32(logging_level,             3,              "The logging level. Integer in the range [0, 255]. 0 will output any log() message, while"
                                                         " 255 will not output any. Current OpenPose library messages are in the range 0-4: 1 for"
                                                         " low priority messages and 4 for important ones.");
@@ -66,26 +78,28 @@ DEFINE_double(alpha_pose,               0.6,            "Blending factor (range 
                                                         " hide it. Only valid for GPU rendering.");
 
 image_transport::Publisher pub;
+ros::Publisher spub;
 sensor_msgs::ImagePtr msgi;
 cv_bridge::CvImageConstPtr cv_ptr;
 
 std::string the_model_folder = "/openpose-1.2.1/models/";
 
+bool publishing_image = true;
 
 void mycallback(const sensor_msgs::ImageConstPtr& msg){//does nothing
 //locks
 //boost::lock_guard<>
 //gets image
 //unlocks
-ROS_INFO("entered mycallback");
+//ROS_INFO("entered mycallback");
 try{
   cv_ptr = cv_bridge::toCvShare(msg, sensor_msgs::image_encodings::BGR8);
 }
 catch (cv_bridge::Exception& e)
 {
-  ROS_ERROR("cv_bridge derped. %s",e.what());
+  ROS_ERROR("cv_bridge failed. %s",e.what());
 }
-ROS_INFO("extiing callaback");
+//ROS_INFO("extiing callaback");
 
 //NO. not gonna lock anything. this is not going to be threaded. this is just gonna be do one frame capture one frame. that is it!
 }
@@ -100,6 +114,7 @@ int main(int argc, char *argv[])
     ros::NodeHandle nh;
     image_transport::ImageTransport it(nh);
     pub = it.advertise("image", 1);
+    spub = nh.advertise<geometry_msgs::Polygon>("my_topic", 1);
     image_transport::Subscriber sub = it.subscribe("im_in", 1, mycallback);
     // Running openPoseTutorialPose1
     op::log("OpenPose Library Tutorial - Example 1.", op::Priority::High);
@@ -146,6 +161,12 @@ int main(int argc, char *argv[])
     //i think the easiest way to wrap around this is to use a lock and multithread this.
   //  cv::Mat cv_ptr->image = op::loadImage(FLAGS_image_path, CV_LOAD_IMAGE_COLOR);
 
+  //I'm preinitializing everything I can for speed's sake.
+    std::vector<double> scaleInputToNetInputs;
+    std::vector<op::Point<int>> netInputSizes;
+    double scaleInputToOutput;
+    op::Point<int> outputResolution;
+
     ros::Rate r(30);
     ROS_INFO("Defined everything ready to acquire.");
 
@@ -155,10 +176,6 @@ int main(int argc, char *argv[])
               op::error("Could not open or find the image: " + FLAGS_image_path, __LINE__, __FUNCTION__, __FILE__);
           const op::Point<int> imageSize{cv_ptr->image.cols, cv_ptr->image.rows};
           // Step 2 - Get desired scale sizes
-          std::vector<double> scaleInputToNetInputs;
-          std::vector<op::Point<int>> netInputSizes;
-          double scaleInputToOutput;
-          op::Point<int> outputResolution;
           std::tie(scaleInputToNetInputs, netInputSizes, scaleInputToOutput, outputResolution)
               = scaleAndSizeExtractor.extract(imageSize);
           // Step 3 - Format input image to OpenPose input and output formats
@@ -166,14 +183,39 @@ int main(int argc, char *argv[])
           auto outputArray = cvMatToOpOutput.createArray(cv_ptr->image, scaleInputToOutput, outputResolution);
           // Step 4 - Estimate poseKeypoints
           poseExtractorCaffe.forwardPass(netInputArray, imageSize, scaleInputToNetInputs);
-          const auto poseKeypoints = poseExtractorCaffe.getPoseKeypoints();
-          // Step 5 - Render poseKeypoints
-          poseRenderer.renderPose(outputArray, poseKeypoints, scaleInputToOutput);
-          // Step 6 - OpenPose output format to cv::Mat
-          auto outputImage = opOutputToCvMat.formatToCvMat(outputArray);
-          msgi = cv_bridge::CvImage(std_msgs::Header(), "bgr8", outputImage).toImageMsg();
+          // const op::Array<float> poses; //magic??
+          // int num_people = poses.getSize(0);
+          // ROS_INFO("found %d people", num_people);
+          const auto poseKeypoints = poseExtractorCaffe.getPoseKeypoints(); //probably an op::Array<float>
+          size_t num_people2 = poseKeypoints.getSize(0);
+          size_t num_bodyparts = poseKeypoints.getSize(1);
+          ROS_INFO("found %d people from keypoints", (int)num_people2);
+          ///this can be skipped too if we only want to publish the points, but not the image with the overlay.
+          //for number of people? no. I am just going to find one.
+          size_t person = 0;
+          geometry_msgs::Polygon myperson;
+          myperson.points.reserve(num_bodyparts);
+          geometry_msgs::Point32 part;
 
-          pub.publish(msgi);
+          for (size_t bpart = 0; bpart < num_bodyparts; bpart+=3)
+          {
+            part.x = poseKeypoints[bpart];
+            part.y = poseKeypoints[bpart+1];
+            part.z = poseKeypoints[bpart+2] ; // or 0;
+            myperson.points.push_back(part);
+          }
+          spub.publish(myperson);
+
+          if (publishing_image)
+          {
+            // Step 5 - Render poseKeypoints
+            poseRenderer.renderPose(outputArray, poseKeypoints, scaleInputToOutput);
+            // Step 6 - OpenPose output format to cv::Mat
+            auto outputImage = opOutputToCvMat.formatToCvMat(outputArray);
+            msgi = cv_bridge::CvImage(std_msgs::Header(), "bgr8", outputImage).toImageMsg();
+
+            pub.publish(msgi);
+          }
         }
         ros::spinOnce();
         r.sleep();
