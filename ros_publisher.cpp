@@ -190,6 +190,7 @@ int main(int argc, char *argv[])
           size_t num_people2 = poseKeypoints.getSize(0);
           size_t num_bodyparts = poseKeypoints.getSize(1);
           ROS_INFO("found %d people from keypoints", (int)num_people2);
+          ROS_INFO("found %d num_bodyparts", (int)num_bodyparts);
           ///this can be skipped too if we only want to publish the points, but not the image with the overlay.
           //for number of people? no. I am just going to find one.
           size_t person = 0;
@@ -197,7 +198,7 @@ int main(int argc, char *argv[])
           myperson.points.reserve(num_bodyparts);
           geometry_msgs::Point32 part;
 
-          for (size_t bpart = 0; bpart < num_bodyparts; bpart+=3)
+          for (size_t bpart = 0; bpart < num_bodyparts*3; bpart+=3)
           {
             part.x = poseKeypoints[bpart];
             part.y = poseKeypoints[bpart+1];
