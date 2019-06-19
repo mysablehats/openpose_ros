@@ -1,0 +1,11 @@
+<launch>
+  <!-- <env name="GMON_OUT_PREFIX" value="myprofilething"/> -->
+  <node name="op_mp_node" pkg="openpose_ros" type="op_mp" output="screen">
+    <remap from="im_in" to="/videofiles/image_raw"/>
+  </node>
+  <node name="op_skels" pkg="openpose_ros" type="showskeleton.py" output="screen">
+    <remap from="im_in" to="/videofiles/image_raw"/>
+    <remap from="skel" to="/multi_skel"/>
+  </node>
+
+</launch>

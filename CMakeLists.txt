@@ -5,6 +5,26 @@ project( openpose_ros )
 find_package( OpenCV REQUIRED )
 find_package(Boost REQUIRED)
 
+find_package(catkin REQUIRED COMPONENTS
+  roscpp
+  rospy
+  std_msgs
+	sensor_msgs
+  message_generation
+)
+add_message_files(
+   FILES
+   joint.msg
+   person.msg
+   PersonArray.msg
+ )
+
+ generate_messages(
+  DEPENDENCIES
+  std_msgs  # Or other packages containing msgs
+	sensor_msgs
+ )
+
 set(CMAKE_MODULE_PATH
 /openpose-1.2.1/cmake/Modules ${CMAKE_BINARY_DIR}
 ${CMAKE_MODULE_PATH})
@@ -12,7 +32,13 @@ ${CMAKE_MODULE_PATH})
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -pthread")
 
 
-catkin_package()
+catkin_package(  CATKIN_DEPENDS message_runtime 	sensor_msgs)
+
+### for profiling!
+#add_compile_options(-pg)
+#set(catkin_LIBRARIES ${catkin_LIBRARIES} -pg)
+###
+
 include(
 #/openpose-1.2.1/cmake/Modules/FindGlog.cmake
 /openpose-1.2.1/cmake/Modules/FindGFlags.cmake
@@ -64,6 +90,14 @@ target_link_libraries( uu ${OpenCV_LIBS} ${OpenPose_LIBS} ${GLOG_LIBRARY} ${GFLA
 add_executable( mynode ros_publisher.cpp )
 add_dependencies(mynode ${catkin_EXPORTED_TARGETS})
 target_link_libraries( mynode ${OpenCV_LIBS} ${OpenPose_LIBS} ${GLOG_LIBRARY} ${GFLAGS_LIBRARY} ${catkin_LIBRARIES}
+#${Caffe_LIBS}
+${Boost_LIBS}
+)
+
+
+add_executable( op_mp ros_publisher_mp.cpp )
+add_dependencies(op_mp ${catkin_EXPORTED_TARGETS})
+target_link_libraries( op_mp ${OpenCV_LIBS} ${OpenPose_LIBS} ${GLOG_LIBRARY} ${GFLAGS_LIBRARY} ${catkin_LIBRARIES}
 #${Caffe_LIBS}
 ${Boost_LIBS}
 )
