@@ -2,7 +2,7 @@
 import cv2
 import rospy
 from sensor_msgs.msg import Image #, RegioOfInterest
-from openpose_ros.msg import joint, person, PersonArray
+from ar_msgs.msg import Joint, Person, PersonArray
 from geometry_msgs.msg import Polygon
 from std_msgs.msg import Float32MultiArray, Header
 from cv_bridge import CvBridge, CvBridgeError
@@ -236,12 +236,12 @@ class ShowSkel:
                     skelcolor = mycolor(per_index)#self.otherskelscolor
             # for a,aPoint in enumerate(self.SK[0]):
                 # rospy.logdebug(persons)
-                thisPerson = person()
+                thisPerson = Person()
                 for a,aPoint in enumerate(persons):
 
                          #skeltext = '?'
                     skeltext = str(a)
-                    thisJoint = joint()
+                    thisJoint = Joint()
                     thisJoint.joint_num = a
                     thisJoint.confidence = aPoint.confidence
                     thisJoint.roi.x_offset  = int(aPoint.x-self.markersize)

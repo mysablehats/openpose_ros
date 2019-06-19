@@ -8,22 +8,7 @@ find_package(Boost REQUIRED)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
-  std_msgs
-	sensor_msgs
-  message_generation
 )
-add_message_files(
-   FILES
-   joint.msg
-   person.msg
-   PersonArray.msg
- )
-
- generate_messages(
-  DEPENDENCIES
-  std_msgs  # Or other packages containing msgs
-	sensor_msgs
- )
 
 set(CMAKE_MODULE_PATH
 /openpose-1.2.1/cmake/Modules ${CMAKE_BINARY_DIR}
@@ -32,7 +17,8 @@ ${CMAKE_MODULE_PATH})
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -pthread")
 
 
-catkin_package(  CATKIN_DEPENDS message_runtime 	sensor_msgs)
+catkin_package()
+
 
 ### for profiling!
 #add_compile_options(-pg)
